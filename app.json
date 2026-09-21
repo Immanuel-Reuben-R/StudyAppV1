@@ -1,0 +1,33 @@
+{
+  "expo": {
+    "name": "StudyNotesApp",
+    "slug": "StudyNotesApp",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "package": "com.the_baron.StudyNotesApp"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "9e63553d-2dbb-4ef0-98f7-d75fbdc4c7b4"
+      }
+    },
+    "plugins": [
+      "expo-sqlite"
+    ]
+  }
+}
