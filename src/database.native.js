@@ -1,10 +1,8 @@
 import * as SQLite from 'expo-sqlite';
 
-// Open the database synchronously (new API in expo-sqlite)
 export const db = SQLite.openDatabaseSync('studynotes.db');
 
 export const initDB = () => {
-  // Create tables for our app structure
   db.execSync(`
     PRAGMA foreign_keys = ON;
 
@@ -26,6 +24,7 @@ export const initDB = () => {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       chapter_id INTEGER UNIQUE NOT NULL,
       content TEXT,
+      is_ai_enhanced INTEGER DEFAULT 0,
       last_updated DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (chapter_id) REFERENCES chapters (id) ON DELETE CASCADE
     );
@@ -34,6 +33,7 @@ export const initDB = () => {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       note_id INTEGER NOT NULL,
       content TEXT,
+      is_ai_enhanced INTEGER DEFAULT 0,
       saved_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (note_id) REFERENCES notes (id) ON DELETE CASCADE
     );
@@ -43,9 +43,13 @@ export const initDB = () => {
       value TEXT
     );
   `);
+
+  // Migration for adding is_ai_enhanced if database was created previously
+  try { db.execSync('ALTER TABLE notes ADD COLUMN is_ai_enhanced INTEGER DEFAULT 0;'); } catch(e) {}
+  try { db.execSync('ALTER TABLE note_versions ADD COLUMN is_ai_enhanced INTEGER DEFAULT 0;'); } catch(e) {}
 };
 
-// --- SETTINGS (Persona & API Keys) ---
+// --- SETTINGS ---
 export const getSetting = (key) => {
   const result = db.getFirstSync('SELECT value FROM settings WHERE key = ?', [key]);
   return result ? result.value : null;
@@ -62,7 +66,13 @@ export const addSubject = (name) => {
 };
 
 export const getSubjects = () => {
-  return db.getAllSync('SELECT * FROM subjects ORDER BY created_at ASC');
+  return db.getAllSync(`
+    SELECT s.*, COUNT(c.id) as chapterCount 
+    FROM subjects s 
+    LEFT JOIN chapters c ON s.id = c.subject_id 
+    GROUP BY s.id 
+    ORDER BY s.created_at ASC
+  `);
 };
 
 export const deleteSubject = (id) => {
@@ -76,7 +86,20 @@ export const addChapter = (subjectId, title) => {
 };
 
 export const getChaptersBySubject = (subjectId) => {
-  return db.getAllSync('SELECT * FROM chapters WHERE subject_id = ? ORDER BY created_at ASC', [subjectId]);
+  return db.getAllSync(`
+    SELECT c.*, 
+           n.id as note_id, 
+           n.is_ai_enhanced,
+           CASE 
+             WHEN n.id IS NULL THEN 'empty'
+             WHEN n.is_ai_enhanced = 1 THEN 'enhanced'
+             ELSE 'draft'
+           END as status
+    FROM chapters c 
+    LEFT JOIN notes n ON c.id = n.chapter_id
+    WHERE c.subject_id = ? 
+    ORDER BY c.created_at ASC
+  `, [subjectId]);
 };
 
 // --- NOTES & VERSIONING ---
@@ -84,16 +107,16 @@ export const getNoteForChapter = (chapterId) => {
   return db.getFirstSync('SELECT * FROM notes WHERE chapter_id = ?', [chapterId]);
 };
 
-export const saveNote = (chapterId, content) => {
+export const saveNote = (chapterId, content, isEnhanced = 0) => {
   const existing = getNoteForChapter(chapterId);
   let noteId;
 
   if (existing) {
     noteId = existing.id;
-    // Save current content to history before overwriting
-    db.runSync('INSERT INTO note_versions (note_id, content) VALUES (?, ?)', [noteId, existing.content]);
+    // Save history
+    db.runSync('INSERT INTO note_versions (note_id, content, is_ai_enhanced) VALUES (?, ?, ?)', [noteId, existing.content, existing.is_ai_enhanced]);
     
-    // Enforce exactly 3 max historical versions (delete older ones)
+    // Prune history to max 3
     db.runSync(`
       DELETE FROM note_versions 
       WHERE note_id = ? 
@@ -102,11 +125,11 @@ export const saveNote = (chapterId, content) => {
       )
     `, [noteId, noteId]);
 
-    // Update current note
-    db.runSync('UPDATE notes SET content = ?, last_updated = CURRENT_TIMESTAMP WHERE id = ?', [content, noteId]);
+    // Update active
+    db.runSync('UPDATE notes SET content = ?, is_ai_enhanced = ?, last_updated = CURRENT_TIMESTAMP WHERE id = ?', [content, isEnhanced, noteId]);
   } else {
-    // First time saving a note for this chapter
-    const result = db.runSync('INSERT INTO notes (chapter_id, content) VALUES (?, ?)', [chapterId, content]);
+    // New note
+    const result = db.runSync('INSERT INTO notes (chapter_id, content, is_ai_enhanced) VALUES (?, ?, ?)', [chapterId, content, isEnhanced]);
     noteId = result.lastInsertRowId;
   }
   return noteId;

@@ -1,15 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { Text, View, ActivityIndicator } from 'react-native';
+import { Text, View, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { initDB } from './src/database';
+import { Ionicons } from '@expo/vector-icons';
 
+// Import all the actual screens we built
 import HomeScreen from './src/screens/HomeScreen';
-
-// Placeholders for the other screens we will build next
-const SubjectScreen = () => <View style={{flex: 1, backgroundColor: '#121212'}}><Text style={{color: 'white'}}>Subject Chapters Here</Text></View>;
-const NoteEditorScreen = () => <View style={{flex: 1, backgroundColor: '#121212'}}><Text style={{color: 'white'}}>Notes & AI Enhancer Here</Text></View>;
-const SettingsScreen = () => <View style={{flex: 1, backgroundColor: '#121212'}}><Text style={{color: 'white'}}>API Keys Here</Text></View>;
+import SubjectScreen from './src/screens/SubjectScreen';
+import NoteEditorScreen from './src/screens/NoteEditorScreen';
+import SettingsScreen from './src/screens/SettingsScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -47,9 +47,21 @@ export default function App() {
         <Stack.Screen 
           name="Home" 
           component={HomeScreen} 
-          options={{ title: 'My Study Notes' }} 
+          options={({ navigation }) => ({ 
+            title: 'My Study Notes',
+            headerRight: () => (
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <TouchableOpacity style={{ marginRight: 20, opacity: 0.4 }} disabled={true}>
+                  <Ionicons name="search" size={24} color="#fff" />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => navigation.navigate('Settings')}>
+                  <Ionicons name="settings-outline" size={24} color="#fff" />
+                </TouchableOpacity>
+              </View>
+            )
+          })} 
         />
-        <Stack.Screen name="Subject" component={SubjectScreen} options={({ route }) => ({ title: route.params?.subjectName || 'Subject' })} />
+        <Stack.Screen name="Subject" component={SubjectScreen} />
         <Stack.Screen name="NoteEditor" component={NoteEditorScreen} />
         <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: 'Account Settings' }} />
       </Stack.Navigator>
